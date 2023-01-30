@@ -2,63 +2,64 @@ import React from 'react'
 import { useState} from 'react'
 import add from '../img/add.png'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
-import { auth,storage, db } from '../firebase'
+import { auth,db, storage } from '../firebase'
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { doc, setDoc } from "firebase/firestore"; 
-// import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 export const  Register=() => {
-const [err, setErr] = useState(false)
+    const [err, setErr] = useState(false);
+//   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
-const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
+    // setLoading(true);
     e.preventDefault();
     const displayName = e.target[0].value;
     const email = e.target[1].value;
     const password = e.target[2].value;
     const file = e.target[3].files[0];
 
-    console.log(displayName, email, password)
-try{
-    //creates users
-   const res= await createUserWithEmailAndPassword(auth, email, password);
+    try {
+      //Create user
+      const res = await createUserWithEmailAndPassword(auth, email, password);
 
-   //create references so users can upload images
-  const storageRef = ref(storage, displayName);
-   
-   const uploadTask = uploadBytesResumable(storageRef, file);
-   
+      //Create a unique image name
+    //   const date = new Date().getTime();
+      const storageRef = ref(storage, displayName);
 
-   uploadTask.on((error) => {
-    setErr(true)
-     }, 
-     (error) => {
-     }, 
-     () => {
-       getDownloadURL(uploadTask.snapshot.ref).then( async(downloadURL) => {
-         await updateProfile(res.user, {
-            displayName,
-            photoURL: downloadURL,
-         })
-         await setDoc(doc(db, "users", res.user.uid), {
-            uid: res.user.uid,
-            displayName,
-            email,
-            photoURL: downloadURL,
-          }          );
+      await uploadBytesResumable(storageRef, file).then(() => {
+        getDownloadURL(storageRef).then(async (downloadURL) => {
+          try {
+            //Update profile
+            await updateProfile(res.user, {
+              displayName,
+              photoURL: downloadURL,
+            });
+            console.log(`${displayName} added as user`)
+            //create user on firestore
+            await setDoc(doc(db, "users", res.user.uid), {
+              uid: res.user.uid,
+              displayName,
+              email,
+              photoURL: downloadURL,
+            });
 
-          await setDoc(doc(db, "userChats", res.user.uid), {})
-       });
-     }
-   );
-
-
-} catch (err) {
-    setErr(true);
-}
-
-
-}
-
+            //create empty user chats on firestore
+            await setDoc(doc(db, "userChats", res.user.uid), {});
+            navigate("/");
+          } catch (err) {
+            console.log(err);
+            setErr(true);
+            // setLoading(false);
+          }
+        });
+      });
+    } catch (err) {
+      setErr(true);
+    //   setLoading(false);
+    }
+  };
     return (
         <div className='formContainer'>
             <div className='formWrapper'>
